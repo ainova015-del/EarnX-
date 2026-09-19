@@ -1,0 +1,57 @@
+name: Build EarnX APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract EarnX project
+        run: |
+          unzip -o EarnX-AndroidIDE-ready.zip -d earnx_project
+          find earnx_project -type f -name gradlew -print
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Find Gradle project
+        run: |
+          GRADLEW=$(find earnx_project -type f -name gradlew | head -n 1)
+          if [ -z "$GRADLEW" ]; then
+            echo "gradlew not found"
+            exit 1
+          fi
+          echo "GRADLEW=$GRADLEW" >> $GITHUB_ENV
+          chmod +x "$GRADLEW"
+          echo "Gradle wrapper: $GRADLEW"
+
+      - name: Build Debug APK
+        run: |
+          cd "$(dirname "$GRADLEW")"
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Find APK
+        run: |
+          find earnx_project -type f -name "*.apk" -print
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarnX-APK
+          path: |
+            earnx_project/**/build/outputs/apk/**/*.apk
+          if-no-files-found: error
