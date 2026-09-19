@@ -18,23 +18,48 @@ jobs:
         run: |
           unzip -o EarnX-AndroidIDE-ready.zip -d earnx_project
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: earnx_project/EarnX_cap/package.json
+
+      - name: Install dependencies
+        working-directory: earnx_project/EarnX_cap
+        run: |
+          npm install
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
+      - name: Prepare Android project
+        working-directory: earnx_project/EarnX_cap
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          rm -rf android
+          npx cap add android
+          npx cap sync android
 
-          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+      - name: Build APK
+        working-directory: earnx_project/EarnX_cap/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
-          if [ ! -f "$SDKMANAGER" ]; then
-            SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
-          fi
+      - name: Find APK
+        run: |
+          find earnx_project -type f -name "*.apk" -print
 
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarnX-APK
+          path: |
+            earnx_project/EarnX_cap/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
           if [ -z "$SDKMANAGER" ]; then
             echo "Android sdkmanager not found"
             exit 1
