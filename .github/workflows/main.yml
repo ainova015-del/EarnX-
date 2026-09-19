@@ -17,7 +17,6 @@ jobs:
       - name: Extract EarnX project
         run: |
           unzip -o EarnX-AndroidIDE-ready.zip -d earnx_project
-          find earnx_project -type f -name gradlew -print
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -26,26 +25,55 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+          if [ ! -f "$SDKMANAGER" ]; then
+            SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          fi
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "Android sdkmanager not found"
+            exit 1
+          fi
+
+          yes | "$SDKMANAGER" --licenses || true
+
+          "$SDKMANAGER" "platform-tools"
 
       - name: Find Gradle project
         run: |
           GRADLEW=$(find earnx_project -type f -name gradlew | head -n 1)
+
           if [ -z "$GRADLEW" ]; then
             echo "gradlew not found"
+            echo "Project contents:"
+            find earnx_project -maxdepth 4 -type f | head -200
             exit 1
           fi
-          echo "GRADLEW=$GRADLEW" >> $GITHUB_ENV
+
+          echo "GRADLEW=$GRADLEW" >> "$GITHUB_ENV"
+
           chmod +x "$GRADLEW"
-          echo "Gradle wrapper: $GRADLEW"
+
+          echo "Found Gradle wrapper:"
+          echo "$GRADLEW"
 
       - name: Build Debug APK
         run: |
-          cd "$(dirname "$GRADLEW")"
-          ./gradlew assembleDebug --no-daemon
+          PROJECT_DIR="$(dirname "$GRADLEW")"
+          cd "$PROJECT_DIR"
+
+          chmod +x ./gradlew
+
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Find APK
         run: |
+          echo "Searching for APK..."
           find earnx_project -type f -name "*.apk" -print
 
       - name: Upload APK
